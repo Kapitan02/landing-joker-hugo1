@@ -188,6 +188,14 @@
     var $ = s => document.querySelector(s);
     var qs = new URLSearchParams(location.search);
 
+    // ── Generador de IDs únicos para deduplicación con CAPI ──
+    function genEventID(prefix){
+      var core = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : ('id_' + Date.now() + '_' + Math.random().toString(36).slice(2,10));
+      return (prefix ? prefix + '_' : '') + core;
+    }
+
     // Habilitar botón "Continuar" sólo cuando hay selección + mayor de 18
     var selected = null;
     document.querySelectorAll('input[name="juego"]').forEach(r=>{
@@ -213,14 +221,18 @@
 
     // Click en "Continuar": arma el enlace de WhatsApp (SIN UTM/fbclid en el texto) y muestra el botón
     $('#continuar').addEventListener('click', function(){
-      // Track del gate pasado
+      // Track del gate pasado con eventID (deduplicación con CAPI)
       try {
-        if(window.fbq) fbq('trackCustom','GatePassed',{ juego: selected || '' });
+        window.__gateEventID = genEventID('gate');
+        if(window.fbq) fbq('trackCustom','GatePassed',{
+          juego: selected || '',
+          eventID: window.__gateEventID
+        });
       } catch(e){}
 
       // ✅ Mensaje limpio (sin UTM / fbclid)
       const text = `Hola! Vengo por el BONO. Juego: ${selected||''}.`;
-      const wa = `https://wa.me/${5491133865865}?text=${encodeURIComponent(text)}`;
+      const wa = `https://wa.me/${PHONE}?text=${encodeURIComponent(text)}`;
 
       var btn = $('#wa-btn');
       btn.href = wa;
@@ -228,11 +240,13 @@
       btn.scrollIntoView({ behavior:'smooth', block:'center' });
     });
 
-    // Click real en WhatsApp → enviamos a Meta el evento con UTMs/fbclid (para análisis) **pero no van al chat**
+    // Click real en WhatsApp → evento con eventID (deduplicación) + UTMs al pixel (no al chat)
     $('#wa-btn').addEventListener('click', function(){
       try {
+        window.__waEventID = genEventID('wa');
         if(window.fbq) fbq('trackCustom','WhatsAppClick', {
           juego: selected || '',
+          eventID: window.__waEventID,
           fbclid: qs.get('fbclid') || '',
           utm_source: qs.get('utm_source') || '',
           utm_medium: qs.get('utm_medium') || '',
@@ -248,3 +262,4 @@
   </script>
 </body>
 </html>
+
